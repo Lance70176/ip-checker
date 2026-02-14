@@ -290,6 +290,16 @@
                         <span class="info-label">國家:</span>
                         <span class="info-value" id="country">-</span>
                     </div>
+                    
+                    <div class="info-row">
+                        <span class="info-label">時區:</span>
+                        <span class="info-value" id="timezone">-</span>
+                    </div>
+                    
+                    <div class="info-row" id="vpnRow" style="display: none;">
+                        <span class="info-label">VPN 偵測:</span>
+                        <span class="info-value" id="vpnStatus">-</span>
+                    </div>
                 </div>
                 
                 <div class="alert-box">
@@ -334,6 +344,14 @@
                 document.getElementById('region').textContent = data.region || '未知';
                 document.getElementById('country').textContent = data.country_name || data.country || '未知';
                 
+                // 時區資訊與 VPN 偵測
+                const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                const ipTimezone = data.timezone;
+                document.getElementById('timezone').textContent = `${ipTimezone || '未知'} (瀏覽器: ${browserTimezone})`;
+                
+                // VPN 偵測邏輯
+                detectVPN(data, browserTimezone);
+                
                 // 初始化地圖
                 initMap(data.latitude, data.longitude, data.city);
                 
@@ -374,6 +392,70 @@
         
         // 頁面載入後開始檢測
         document.addEventListener('DOMContentLoaded', getIPInfo);
+        
+        // VPN 偵測功能
+        function detectVPN(data, browserTimezone) {
+            const vpnRow = document.getElementById('vpnRow');
+            const vpnStatus = document.getElementById('vpnStatus');
+            
+            let vpnScore = 0;
+            let reasons = [];
+            
+            // 1. 時區比對
+            if (data.timezone && browserTimezone) {
+                const ipTz = data.timezone.toLowerCase();
+                const browserTz = browserTimezone.toLowerCase();
+                
+                if (ipTz !== browserTz && !browserTz.includes(ipTz.split('/')[0])) {
+                    vpnScore += 40;
+                    reasons.push('時區不符');
+                }
+            }
+            
+            // 2. ISP 類型檢查（常見的 VPN/主機商關鍵字）
+            const isp = (data.org || data.asn || '').toLowerCase();
+            const vpnKeywords = [
+                'vpn', 'proxy', 'hosting', 'datacenter', 'cloudflare', 'amazon', 'google', 'microsoft',
+                'digitalocean', 'linode', 'vultr', 'ovh', 'hetzner', 'alibaba', 'tencent', 'baidu',
+                'contabo', 'scaleway', 'aws', 'azure', 'gcp', 'oracle', 'ibm'
+            ];
+            
+            for (const keyword of vpnKeywords) {
+                if (isp.includes(keyword)) {
+                    vpnScore += 35;
+                    reasons.push('資料中心 IP');
+                    break;
+                }
+            }
+            
+            // 3. 常見 VPN 供應商檢查
+            const vpnProviders = [
+                'nordvpn', 'expressvpn', 'surfshark', 'cyberghost', 'pia', 'protonvpn',
+                'tunnelbear', 'windscribe', 'hide.me', 'ipvanish', 'strongvpn', 'vyprvpn'
+            ];
+            
+            for (const provider of vpnProviders) {
+                if (isp.includes(provider)) {
+                    vpnScore += 50;
+                    reasons.push('VPN 服務商');
+                    break;
+                }
+            }
+            
+            // 顯示結果
+            vpnRow.style.display = 'flex';
+            
+            if (vpnScore >= 50) {
+                vpnStatus.innerHTML = `🔴 <strong>可能使用 VPN</strong> (${reasons.join(', ')})`;
+                vpnStatus.style.color = '#ff6b6b';
+            } else if (vpnScore >= 25) {
+                vpnStatus.innerHTML = `🟡 <strong>疑似使用 VPN</strong> (${reasons.join(', ')})`;
+                vpnStatus.style.color = '#ffd93d';
+            } else {
+                vpnStatus.innerHTML = `🟢 <strong>未偵測到 VPN</strong>`;
+                vpnStatus.style.color = '#6bcf7f';
+            }
+        }
         
         // 複製到剪貼簿
         async function copyToClipboard(elementId) {
