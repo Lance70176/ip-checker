@@ -105,6 +105,32 @@
             cursor: help;
         }
         
+        .copy-btn {
+            background: rgba(255,255,255,0.15);
+            border: none;
+            border-radius: 8px;
+            padding: 8px;
+            cursor: pointer;
+            color: white;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(255,255,255,0.25);
+        }
+        
+        .copy-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        
+        .copy-btn.copied {
+            background: #28a745;
+        }
+        
         #map {
             height: 250px;
             border-radius: 10px;
@@ -218,12 +244,24 @@
                         <span class="ip-label">IPv4:</span>
                         <span class="help-icon" title="Internet Protocol version 4">?</span>
                         <span class="ip-value" id="ipv4">檢測中...</span>
+                        <button class="copy-btn" onclick="copyToClipboard('ipv4')" title="複製 IP">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                        </button>
                     </div>
                     
                     <div class="ip-box">
                         <span class="ip-label">IPv6:</span>
                         <span class="help-icon" title="Internet Protocol version 6">?</span>
                         <span class="ip-value not-detected" id="ipv6">未檢測到</span>
+                        <button class="copy-btn" onclick="copyToClipboard('ipv6')" title="複製 IP" disabled id="ipv6-copy">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                        </button>
                     </div>
                 </div>
                 
@@ -283,6 +321,13 @@
                 // IP 位址
                 document.getElementById('ipv4').textContent = data.ip || '無法獲取';
                 
+                // 如果有 IPv6，顯示並啟用複製按鈕
+                if (data.ipv6) {
+                    document.getElementById('ipv6').textContent = data.ipv6;
+                    document.getElementById('ipv6').classList.remove('not-detected');
+                    document.getElementById('ipv6-copy').disabled = false;
+                }
+                
                 // IP 資訊
                 document.getElementById('isp').textContent = data.org || data.asn || '未知';
                 document.getElementById('city').textContent = data.city || '未知';
@@ -329,6 +374,53 @@
         
         // 頁面載入後開始檢測
         document.addEventListener('DOMContentLoaded', getIPInfo);
+        
+        // 複製到剪貼簿
+        async function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.textContent;
+            const btn = element.nextElementSibling;
+            
+            if (!text || text === '檢測中...' || text === '未檢測到' || text === '無法獲取') {
+                return;
+            }
+            
+            try {
+                await navigator.clipboard.writeText(text);
+                
+                // 顯示複製成功
+                const originalHTML = btn.innerHTML;
+                btn.classList.add('copied');
+                btn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                `;
+                btn.title = '已複製!';
+                
+                // 2 秒後恢復
+                setTimeout(() => {
+                    btn.classList.remove('copied');
+                    btn.innerHTML = originalHTML;
+                    btn.title = '複製 IP';
+                }, 2000);
+                
+            } catch (err) {
+                console.error('複製失敗:', err);
+                // 降級方案
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                
+                btn.classList.add('copied');
+                setTimeout(() => btn.classList.remove('copied'), 2000);
+            }
+        }
     </script>
 </body>
 </html>
